@@ -3,19 +3,30 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Scanner Profissional Offline</title>
+    <title>Scanner Profissional - Oficina</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; transition: background 0.2s; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; transition: background 0.3s; height: 100vh; }
         h2 { font-size: 1.2rem; color: #1a1a1a; margin: 10px 0; }
         
-        .flash-success { background: #2ecc71 !important; }
-        .flash-warn { background: #e74c3c !important; }
+        /* Cores dos Flashes Visuais (fundo da tela) */
+        .flash-success { background: #2ecc71 !important; } /* Verde */
+        .flash-warn { background: #e74c3c !important; }    /* Vermelho */
+        .flash-wait { background: #3498db !important; }    /* Azul */
 
-        #reader { width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        #reader { width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); position: relative; }
         
-        .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; max-width: 400px; margin: 15px 0; }
-        button { padding: 15px; border: none; border-radius: 8px; font-weight: bold; color: white; font-size: 14px; transition: 0.2s; }
+        /* Container para mensagens sobre a câmera */
+        #camera-overlay {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+            display: none; flex-direction: column; align-items: center; justify-content: center;
+            background: rgba(0,0,0,0.8); color: white; border-radius: 12px; z-index: 10; padding: 20px; box-sizing: border-box; text-align: center;
+        }
+        #overlay-msg { font-size: 18px; font-weight: bold; margin-bottom: 20px; }
+        #ok-btn { padding: 15px 30px; background: #2ecc71; color: white; border: none; border-radius: 8px; font-weight: bold; font-size: 16px; cursor: pointer; display: none; }
+
+        .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; max-width: 400px; margin: 15px 0; z-index: 5; }
+        button.action-btn { padding: 15px; border: none; border-radius: 8px; font-weight: bold; color: white; font-size: 14px; transition: 0.2s; cursor: pointer; }
         
         .btn-start { background: #007bff; grid-column: span 2; }
         .btn-undo { background: #f1c40f; color: #333; }
@@ -24,30 +35,30 @@
         
         button:active { transform: scale(0.95); opacity: 0.9; }
 
-        #results { width: 100%; max-width: 400px; background: white; border-radius: 12px; padding: 15px; box-sizing: border-box; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
+        #results { width: 100%; max-width: 400px; background: white; border-radius: 12px; padding: 15px; box-sizing: border-box; box-shadow: 0 2px 5px rgba(0,0,0,0.05); z-index: 5; margin-bottom: 20px; }
         .header { display: flex; justify-content: space-between; border-bottom: 2px solid #eee; padding-bottom: 8px; margin-bottom: 10px; font-weight: bold; }
         
         ul { list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto; }
         li { padding: 10px 0; border-bottom: 1px solid #f8f8f8; font-family: monospace; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
         li span { color: #999; font-size: 11px; }
-        
-        .dup-warning { color: #dc3545; font-weight: bold; font-size: 12px; text-align: center; margin-bottom: 10px; display: none; }
-        .wait-msg { color: #007bff; font-weight: bold; font-size: 12px; text-align: center; margin-bottom: 10px; display: none; }
     </style>
 </head>
 <body>
 
-    <h2>Scanner de Itens</h2>
+    <h2>Scanner de Peças</h2>
     
-    <div id="reader"></div>
-    <div id="aviso-dup" class="dup-warning">⚠️ CÓDIGO JÁ ESCANEADO!</div>
-    <div id="aviso-espera" class="wait-msg">AGUARDE 2s...</div>
+    <div id="reader">
+        <div id="camera-overlay">
+            <div id="overlay-msg"></div>
+            <button id="ok-btn" onclick="confirmarLeitura()">OK (Confirmar)</button>
+        </div>
+    </div>
 
     <div class="btns">
-        <button class="btn-start" id="scanBtn" onclick="toggleCamera()">LIGAR CÂMERA</button>
-        <button class="btn-undo" onclick="apagarUltimo()">APAGAR ÚLTIMO</button>
-        <button class="btn-save" onclick="exportar()">BAIXAR RELATÓRIO</button>
-        <button class="btn-del" onclick="limpar()">LIMPAR TUDO</button>
+        <button class="action-btn btn-start" id="scanBtn" onclick="toggleCamera()">LIGAR CÂMERA</button>
+        <button class="action-btn btn-undo" onclick="apagarUltimo()">APAGAR ÚLTIMO</button>
+        <button class="action-btn btn-save" onclick="exportar()">BAIXAR RELATÓRIO</button>
+        <button class="action-btn btn-del" onclick="limpar()">LIMPAR TUDO</button>
     </div>
 
     <div id="results">
@@ -62,24 +73,44 @@
         let scans = JSON.parse(localStorage.getItem('meus_scans')) || [];
         let html5QrCode;
         let isCameraOn = false;
-        let estaAguardando = false; // Trava para a pausa de 2 segundos
+        let bloqueioLeitura = false; // Trava geral do scanner
+
+        // Configurações de tempo (em milissegundos)
+        const TEMPO_ALERTA = 3000; // 3 segundos para os flashes e mensagens
+        const TEMPO_ESPERA = 3000; // 3 segundos de pausa entre códigos
 
         function tocarSom(frequencia, duracao) {
-            const context = new (window.AudioContext || window.webkitAudioContext)();
-            const osc = context.createOscillator();
-            const gain = context.createGain();
-            osc.type = "sine";
-            osc.frequency.setValueAtTime(frequencia, context.currentTime);
-            gain.gain.setValueAtTime(0.1, context.currentTime);
-            osc.connect(gain);
-            gain.connect(context.destination);
-            osc.start();
-            osc.stop(context.currentTime + duracao);
+            try {
+                const context = new (window.AudioContext || window.webkitAudioContext)();
+                const osc = context.createOscillator();
+                const gain = context.createGain();
+                osc.type = "sine";
+                osc.frequency.setValueAtTime(frequencia, context.currentTime);
+                gain.gain.setValueAtTime(0.05, context.currentTime); // Volume baixo
+                osc.connect(gain);
+                gain.connect(context.destination);
+                osc.start();
+                osc.stop(context.currentTime + duracao);
+            } catch (e) { console.log("Áudio bloqueado pelo navegador."); }
         }
 
         function efeitoVisual(classe) {
             document.body.classList.add(classe);
-            setTimeout(() => document.body.classList.remove(classe), 200);
+            setTimeout(() => document.body.classList.remove(classe), TEMPO_ALERTA);
+        }
+
+        function mostrarOverlay(mensagem, mostrarBotaoOK) {
+            const overlay = document.getElementById('camera-overlay');
+            const msgEl = document.getElementById('overlay-msg');
+            const btnOk = document.getElementById('ok-btn');
+            
+            msgEl.innerText = mensagem;
+            overlay.style.display = 'flex';
+            btnOk.style.display = mostrarBotaoOK ? 'block' : 'none';
+        }
+
+        function fecharOverlay() {
+            document.getElementById('camera-overlay').style.display = 'none';
         }
 
         function atualizar() {
@@ -93,43 +124,10 @@
         function toggleCamera() {
             if (!isCameraOn) {
                 html5QrCode = new Html5Qrcode("reader");
-                html5QrCode.start(
-                    { facingMode: "environment" }, 
-                    { fps: 10, qrbox: { width: 250, height: 150 } },
-                    (text) => {
-                        // Se estiver na pausa de 2 segundos, ignora
-                        if (estaAguardando) return;
-
-                        const existe = scans.find(s => s.v === text);
-                        
-                        if (existe) {
-                            tocarSom(220, 0.3);
-                            if (navigator.vibrate) navigator.vibrate([200, 100, 200]); // Vibração de erro mais forte
-                            efeitoVisual('flash-warn');
-                            document.getElementById('aviso-dup').style.display = 'block';
-                            setTimeout(() => document.getElementById('aviso-dup').style.display = 'none', 2000);
-                            return;
-                        }
-
-                        // Feedback de sucesso
-                        tocarSom(880, 0.1);
-                        // Vibração pulsante (400ms ligado, 100ms desligado, 400ms ligado)
-                        if (navigator.vibrate) navigator.vibrate([400, 100, 400]); 
-                        efeitoVisual('flash-success');
-
-                        scans.push({ v: text, t: new Date().toLocaleTimeString() });
-                        localStorage.setItem('meus_scans', JSON.stringify(scans));
-                        atualizar();
-
-                        // Inicia a pausa de 2 segundos
-                        estaAguardando = true;
-                        document.getElementById('aviso-espera').style.display = 'block';
-                        setTimeout(() => {
-                            estaAguardando = false;
-                            document.getElementById('aviso-espera').style.display = 'none';
-                        }, 2000);
-                    }
-                ).then(() => {
+                const config = { fps: 10, qrbox: { width: 250, height: 150 } };
+                
+                html5QrCode.start({ facingMode: "environment" }, config, processarLeitura)
+                .then(() => {
                     isCameraOn = true;
                     document.getElementById('scanBtn').innerText = "DESLIGAR CÂMERA";
                     document.getElementById('scanBtn').style.background = "#6c757d";
@@ -139,8 +137,62 @@
                     isCameraOn = false;
                     document.getElementById('scanBtn').innerText = "LIGAR CÂMERA";
                     document.getElementById('scanBtn').style.background = "#007bff";
+                    fecharOverlay();
+                    bloqueioLeitura = false;
                 });
             }
+        }
+
+        function processarLeitura(text) {
+            if (bloqueioLeitura) return; // Ignora se estiver travado
+
+            const existe = scans.find(s => s.v === text);
+            
+            if (existe) {
+                // Feedback de DUPLICATA (Vermelho)
+                bloqueioLeitura = true; // Trava o scanner
+                tocarSom(220, 0.4); // Som grave
+                if (navigator.vibrate) navigator.vibrate([200, 100, 200, 100, 200]); // Vibração de erro forte
+                efeitoVisual('flash-warn');
+                mostrarOverlay("⚠️ CÓDIGO JÁ ESCANEADO!", false);
+                
+                // Aguarda 3s do alerta + 3s de pausa obrigatória antes de liberar
+                setTimeout(() => {
+                    iniciarPausaObrigatoria();
+                }, TEMPO_ALERTA);
+                return;
+            }
+
+            // Feedback de SUCESSO (Verde)
+            bloqueioLeitura = true; // Trava o scanner
+            tocarSom(880, 0.1); // Som agudo
+            if (navigator.vibrate) navigator.vibrate([400, 100, 400]); // Vibração pulsante forte
+            efeitoVisual('flash-success');
+            
+            // Salva o código
+            scans.push({ v: text, t: new Date().toLocaleTimeString() });
+            localStorage.setItem('meus_scans', JSON.stringify(scans));
+            atualizar();
+
+            // Mostra mensagem de lido e aguarda o clique no OK
+            setTimeout(() => {
+                 mostrarOverlay("✅ CÓDIGO LIDO COM SUCESSO!", true);
+            }, 300); // Pequeno delay para o flash verde aparecer primeiro
+        }
+
+        function confirmarLeitura() {
+            fecharOverlay();
+            iniciarPausaObrigatoria();
+        }
+
+        function iniciarPausaObrigatoria() {
+            efeitoVisual('flash-wait');
+            mostrarOverlay("⏳ AGUARDE 3s PARA PRÓXIMO...", false);
+            
+            setTimeout(() => {
+                fecharOverlay();
+                bloqueioLeitura = false; // Libera o scanner
+            }, TEMPO_ESPERA);
         }
 
         function apagarUltimo() {
@@ -152,17 +204,17 @@
         }
 
         function exportar() {
-            if (scans.length === 0) return;
+            if (scans.length === 0) return alert("Nada para exportar.");
             const conteudo = scans.map(s => s.v).join('\n');
             const blob = new Blob([conteudo], { type: 'text/plain' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `lista_${new Date().toISOString().slice(0,10)}.txt`;
+            a.download = `scans_${new Date().toISOString().slice(0,10)}.txt`;
             a.click();
         }
 
         function limpar() {
-            if (confirm("Limpar tudo?")) {
+            if (confirm("Apagar toda a lista?")) {
                 scans = [];
                 localStorage.removeItem('meus_scans');
                 atualizar();
