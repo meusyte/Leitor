@@ -3,31 +3,44 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Leitor Scanner - Oficina</title>
+    <title>Scanner Profissional Offline</title>
     <script src="https://unpkg.com/html5-qrcode"></script>
     <style>
-        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; }
+        body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; transition: background 0.2s; }
         h2 { font-size: 1.2rem; color: #1a1a1a; margin: 10px 0; }
+        
+        /* Efeito de flash ao escanear */
+        .flash-success { background: #2ecc71 !important; }
+        .flash-warn { background: #e74c3c !important; }
+
         #reader { width: 100%; max-width: 400px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); }
+        
         .btns { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; width: 100%; max-width: 400px; margin: 15px 0; }
         button { padding: 15px; border: none; border-radius: 8px; font-weight: bold; color: white; font-size: 14px; transition: 0.2s; }
+        
         .btn-start { background: #007bff; grid-column: span 2; }
         .btn-undo { background: #f1c40f; color: #333; }
         .btn-save { background: #28a745; }
         .btn-del { background: #dc3545; grid-column: span 2; margin-top: 5px; }
+        
         button:active { transform: scale(0.95); opacity: 0.9; }
+
         #results { width: 100%; max-width: 400px; background: white; border-radius: 12px; padding: 15px; box-sizing: border-box; box-shadow: 0 2px 5px rgba(0,0,0,0.05); }
         .header { display: flex; justify-content: space-between; border-bottom: 2px solid #eee; padding-bottom: 8px; margin-bottom: 10px; font-weight: bold; }
+        
         ul { list-style: none; padding: 0; margin: 0; max-height: 250px; overflow-y: auto; }
         li { padding: 10px 0; border-bottom: 1px solid #f8f8f8; font-family: monospace; font-size: 15px; display: flex; justify-content: space-between; align-items: center; }
         li span { color: #999; font-size: 11px; }
+        
+        .dup-warning { color: #dc3545; font-weight: bold; font-size: 12px; text-align: center; margin-bottom: 10px; display: none; }
     </style>
 </head>
 <body>
 
-    <h2>Scanner de Peças</h2>
+    <h2>Scanner de Itens</h2>
     
     <div id="reader"></div>
+    <div id="aviso-dup" class="dup-warning">⚠️ CÓDIGO JÁ ESCANEADO!</div>
 
     <div class="btns">
         <button class="btn-start" id="scanBtn" onclick="toggleCamera()">LIGAR CÂMERA</button>
@@ -38,7 +51,7 @@
 
     <div id="results">
         <div class="header">
-            <span>Códigos Lidos</span>
+            <span>Lista de Códigos</span>
             <span id="cont">0</span>
         </div>
         <ul id="lista"></ul>
@@ -49,21 +62,22 @@
         let html5QrCode;
         let isCameraOn = false;
 
-        // Função para gerar o Bipe sonoro (Sintetizado)
-        function tocarBipe() {
+        function tocarSom(frequencia, duracao) {
             const context = new (window.AudioContext || window.webkitAudioContext)();
-            const oscillator = context.createOscillator();
-            const gainNode = context.createGain();
+            const osc = context.createOscillator();
+            const gain = context.createGain();
+            osc.type = "sine";
+            osc.frequency.setValueAtTime(frequencia, context.currentTime);
+            gain.gain.setValueAtTime(0.1, context.currentTime);
+            osc.connect(gain);
+            gain.connect(context.destination);
+            osc.start();
+            osc.stop(context.currentTime + duracao);
+        }
 
-            oscillator.type = "sine";
-            oscillator.frequency.setValueAtTime(880, context.currentTime); // Frequência do bipe
-            gainNode.gain.setValueAtTime(0.1, context.currentTime); // Volume
-
-            oscillator.connect(gainNode);
-            gainNode.connect(context.destination);
-
-            oscillator.start();
-            oscillator.stop(context.currentTime + 0.1); // Duração de 100ms
+        function efeitoVisual(classe) {
+            document.body.classList.add(classe);
+            setTimeout(() => document.body.classList.remove(classe), 200);
         }
 
         function atualizar() {
@@ -81,12 +95,24 @@
                     { facingMode: "environment" }, 
                     { fps: 10, qrbox: { width: 250, height: 150 } },
                     (text) => {
-                        if (scans.length > 0 && scans[scans.length-1].v === text) return;
+                        // VERIFICAÇÃO DE DUPLICATAS
+                        const existe = scans.find(s => s.v === text);
                         
-                        // Feedback: Som e Vibração
-                        tocarBipe();
+                        if (existe) {
+                            // Feedback de erro/duplicata
+                            tocarSom(220, 0.3); // Som grave
+                            if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Vibração dupla
+                            efeitoVisual('flash-warn');
+                            document.getElementById('aviso-dup').style.display = 'block';
+                            setTimeout(() => document.getElementById('aviso-dup').style.display = 'none', 2000);
+                            return;
+                        }
+
+                        // Feedback de sucesso
+                        tocarSom(880, 0.1); // Som agudo
                         if (navigator.vibrate) navigator.vibrate(150);
-                        
+                        efeitoVisual('flash-success');
+
                         scans.push({ v: text, t: new Date().toLocaleTimeString() });
                         localStorage.setItem('meus_scans', JSON.stringify(scans));
                         atualizar();
@@ -95,7 +121,7 @@
                     isCameraOn = true;
                     document.getElementById('scanBtn').innerText = "DESLIGAR CÂMERA";
                     document.getElementById('scanBtn').style.background = "#6c757d";
-                }).catch(err => alert("Erro ao acessar câmera: Use HTTPS."));
+                }).catch(err => alert("Erro: Use HTTPS."));
             } else {
                 html5QrCode.stop().then(() => {
                     isCameraOn = false;
@@ -106,7 +132,7 @@
         }
 
         function apagarUltimo() {
-            if (scans.length > 0 && confirm("Deseja apagar o último código lido?")) {
+            if (scans.length > 0 && confirm("Apagar o último?")) {
                 scans.pop();
                 localStorage.setItem('meus_scans', JSON.stringify(scans));
                 atualizar();
@@ -114,17 +140,17 @@
         }
 
         function exportar() {
-            if (scans.length === 0) return alert("Nada para exportar.");
+            if (scans.length === 0) return;
             const conteudo = scans.map(s => s.v).join('\n');
             const blob = new Blob([conteudo], { type: 'text/plain' });
             const a = document.createElement('a');
             a.href = URL.createObjectURL(blob);
-            a.download = `scans_${new Date().toISOString().slice(0,10)}.txt`;
+            a.download = `lista_${new Date().toISOString().slice(0,10)}.txt`;
             a.click();
         }
 
         function limpar() {
-            if (confirm("Apagar toda a lista?")) {
+            if (confirm("Limpar tudo?")) {
                 scans = [];
                 localStorage.removeItem('meus_scans');
                 atualizar();
