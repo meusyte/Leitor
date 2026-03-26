@@ -9,7 +9,6 @@
         body { font-family: 'Segoe UI', sans-serif; background: #f0f2f5; display: flex; flex-direction: column; align-items: center; padding: 10px; margin: 0; transition: background 0.2s; }
         h2 { font-size: 1.2rem; color: #1a1a1a; margin: 10px 0; }
         
-        /* Efeito de flash ao escanear */
         .flash-success { background: #2ecc71 !important; }
         .flash-warn { background: #e74c3c !important; }
 
@@ -33,6 +32,7 @@
         li span { color: #999; font-size: 11px; }
         
         .dup-warning { color: #dc3545; font-weight: bold; font-size: 12px; text-align: center; margin-bottom: 10px; display: none; }
+        .wait-msg { color: #007bff; font-weight: bold; font-size: 12px; text-align: center; margin-bottom: 10px; display: none; }
     </style>
 </head>
 <body>
@@ -41,6 +41,7 @@
     
     <div id="reader"></div>
     <div id="aviso-dup" class="dup-warning">⚠️ CÓDIGO JÁ ESCANEADO!</div>
+    <div id="aviso-espera" class="wait-msg">AGUARDE 2s...</div>
 
     <div class="btns">
         <button class="btn-start" id="scanBtn" onclick="toggleCamera()">LIGAR CÂMERA</button>
@@ -61,6 +62,7 @@
         let scans = JSON.parse(localStorage.getItem('meus_scans')) || [];
         let html5QrCode;
         let isCameraOn = false;
+        let estaAguardando = false; // Trava para a pausa de 2 segundos
 
         function tocarSom(frequencia, duracao) {
             const context = new (window.AudioContext || window.webkitAudioContext)();
@@ -95,13 +97,14 @@
                     { facingMode: "environment" }, 
                     { fps: 10, qrbox: { width: 250, height: 150 } },
                     (text) => {
-                        // VERIFICAÇÃO DE DUPLICATAS
+                        // Se estiver na pausa de 2 segundos, ignora
+                        if (estaAguardando) return;
+
                         const existe = scans.find(s => s.v === text);
                         
                         if (existe) {
-                            // Feedback de erro/duplicata
-                            tocarSom(220, 0.3); // Som grave
-                            if (navigator.vibrate) navigator.vibrate([100, 50, 100]); // Vibração dupla
+                            tocarSom(220, 0.3);
+                            if (navigator.vibrate) navigator.vibrate([200, 100, 200]); // Vibração de erro mais forte
                             efeitoVisual('flash-warn');
                             document.getElementById('aviso-dup').style.display = 'block';
                             setTimeout(() => document.getElementById('aviso-dup').style.display = 'none', 2000);
@@ -109,13 +112,22 @@
                         }
 
                         // Feedback de sucesso
-                        tocarSom(880, 0.1); // Som agudo
-                        if (navigator.vibrate) navigator.vibrate(150);
+                        tocarSom(880, 0.1);
+                        // Vibração pulsante (400ms ligado, 100ms desligado, 400ms ligado)
+                        if (navigator.vibrate) navigator.vibrate([400, 100, 400]); 
                         efeitoVisual('flash-success');
 
                         scans.push({ v: text, t: new Date().toLocaleTimeString() });
                         localStorage.setItem('meus_scans', JSON.stringify(scans));
                         atualizar();
+
+                        // Inicia a pausa de 2 segundos
+                        estaAguardando = true;
+                        document.getElementById('aviso-espera').style.display = 'block';
+                        setTimeout(() => {
+                            estaAguardando = false;
+                            document.getElementById('aviso-espera').style.display = 'none';
+                        }, 2000);
                     }
                 ).then(() => {
                     isCameraOn = true;
