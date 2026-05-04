@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="pt-br">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Leitor de Código de Barras USB</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f4f4f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+        }
+
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            text-align: center;
+            width: 90%;
+            max-width: 400px;
+        }
+
+        h1 { color: #333; font-size: 1.5rem; }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 5px 15px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            margin-bottom: 20px;
+            background: #e8f5e9;
+            color: #2e7d32;
+            border: 1px solid #c8e6c9;
+        }
+
+        #result-container {
+            margin-top: 20px;
+            padding: 15px;
+            border: 2px dashed #ddd;
+            border-radius: 8px;
+            min-height: 50px;
+        }
+
+        #last-barcode {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #2563eb;
+            word-break: break-all;
+        }
+
+        /* Input escondido para capturar o foco do leitor USB */
+        #hidden-input {
+            position: absolute;
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        .instruction {
+            color: #666;
+            font-size: 0.9rem;
+            margin-top: 15px;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <span class="status-badge">Pronto para leitura USB</span>
+        <h1>Leitor de Estoque</h1>
+        
+        <div id="result-container">
+            <p style="margin:0; color:#888;">Último código lido:</p>
+            <div id="last-barcode">---</div>
+        </div>
+
+        <p class="instruction">Basta passar o leitor no código de barras.</p>
+        
+        <!-- Input invisível que receberá os dados do leitor -->
+        <input type="text" id="hidden-input" autofocus>
+    </div>
+
+    <script>
+        const input = document.getElementById('hidden-input');
+        const display = document.getElementById('last-barcode');
+
+        // Garante que o foco sempre volte para o input, mesmo se o usuário clicar fora
+        document.addEventListener('click', () => {
+            input.focus();
+        });
+
+        input.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const code = input.value.trim();
+                
+                if (code !== "") {
+                    processarLeitura(code);
+                }
+                
+                // Limpa o campo para a próxima leitura
+                input.value = '';
+            }
+        });
+
+        function processarLeitura(codigo) {
+            console.log("Código capturado: " + codigo);
+            display.innerText = codigo;
+
+            // Efeito visual de confirmação
+            display.style.color = '#10b981';
+            setTimeout(() => {
+                display.style.color = '#2563eb';
+            }, 500);
+
+            // Aqui você pode adicionar sua lógica de busca no banco de dados
+            // Ex: buscarProduto(codigo);
+        }
+
+        // Mantém o foco inicial
+        window.onload = () => input.focus();
+    </script>
+</body>
+</html>
