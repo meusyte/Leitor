@@ -1,129 +1,149 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Leitor de Código de Barras USB</title>
-    <style>
-        body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            background-color: #f4f4f9;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            height: 100vh;
-            margin: 0;
-        }
-
-        .container {
-            background: white;
-            padding: 2rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.1);
-            text-align: center;
-            width: 90%;
-            max-width: 400px;
-        }
-
-        h1 { color: #333; font-size: 1.5rem; }
-        
-        .status-badge {
-            display: inline-block;
-            padding: 5px 15px;
-            border-radius: 20px;
-            font-size: 0.8rem;
-            margin-bottom: 20px;
-            background: #e8f5e9;
-            color: #2e7d32;
-            border: 1px solid #c8e6c9;
-        }
-
-        #result-container {
-            margin-top: 20px;
-            padding: 15px;
-            border: 2px dashed #ddd;
-            border-radius: 8px;
-            min-height: 50px;
-        }
-
-        #last-barcode {
-            font-size: 1.8rem;
-            font-weight: bold;
-            color: #2563eb;
-            word-break: break-all;
-        }
-
-        /* Input escondido para capturar o foco do leitor USB */
-        #hidden-input {
-            position: absolute;
-            opacity: 0;
-            pointer-events: none;
-        }
-
-        .instruction {
-            color: #666;
-            font-size: 0.9rem;
-            margin-top: 15px;
-        }
-    </style>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Leitor de NF - MeuDanfe</title>
+  <!-- Biblioteca para leitura de código de barras e QR Code via Câmera -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: #f4f4f9;
+      margin: 0;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .container {
+      max-width: 480px;
+      width: 100%;
+      background: #fff;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      text-align: center;
+      box-sizing: border-box;
+    }
+    #reader {
+      width: 100%;
+      border-radius: 12px;
+      overflow: hidden;
+      margin-top: 15px;
+    }
+    .result-box {
+      margin-top: 20px;
+      padding: 15px;
+      background: #eef9f2;
+      border: 1px solid #c2e8ce;
+      border-radius: 8px;
+      word-break: break-all;
+      display: none;
+    }
+    .btn {
+      display: block;
+      width: 100%;
+      margin-top: 10px;
+      padding: 14px 0;
+      color: white;
+      text-decoration: none;
+      font-weight: bold;
+      border-radius: 8px;
+      font-size: 16px;
+      box-sizing: border-box;
+    }
+    .btn-whatsapp {
+      background-color: #25D366;
+    }
+    .btn-meudanfe {
+      background-color: #0d6efd;
+    }
+    .btn-reset {
+      background-color: #6c757d;
+      margin-top: 15px;
+    }
+  </style>
 </head>
 <body>
 
-    <div class="container">
-        <span class="status-badge">Pronto para leitura USB</span>
-        <h1>Leitor de Estoque</h1>
-        
-        <div id="result-container">
-            <p style="margin:0; color:#888;">Último código lido:</p>
-            <div id="last-barcode">---</div>
-        </div>
+<div class="container">
+  <h2>Leitor de Nota Fiscal</h2>
+  <p>Aponte a câmera do iPhone para o código de barras da Danfe.</p>
+  
+  <!-- Área do scanner -->
+  <div id="reader"></div>
 
-        <p class="instruction">Basta passar o leitor no código de barras.</p>
-        
-        <!-- Input invisível que receberá os dados do leitor -->
-        <input type="text" id="hidden-input" autofocus>
-    </div>
+  <!-- Resultado após leitura -->
+  <div id="result" class="result-box">
+    <h3 style="margin-top:0;">Leitura Concluída!</h3>
+    <p>Chave da Nota:</p>
+    <p id="chaveText" style="font-weight: bold; font-family: monospace; font-size: 15px;"></p>
+    
+    <!-- Botões de Ação -->
+    <a id="btnZap" class="btn btn-whatsapp" target="_blank">Enviar para o WhatsApp</a>
+    <a id="btnMeuDanfe" class="btn btn-meudanfe" target="_blank">Baixar XML no MeuDanfe</a>
+    
+    <button onclick="reiniciarScanner()" class="btn btn-reset">Escanear Outra Nota</button>
+  </div>
+</div>
 
-    <script>
-        const input = document.getElementById('hidden-input');
-        const display = document.getElementById('last-barcode');
+<script>
+  let html5QrcodeScanner;
 
-        // Garante que o foco sempre volte para o input, mesmo se o usuário clicar fora
-        document.addEventListener('click', () => {
-            input.focus();
-        });
+  function iniciarScanner() {
+    html5QrcodeScanner = new Html5QrcodeScanner(
+      "reader", 
+      { 
+        fps: 15, 
+        qrbox: { width: 300, height: 140 }, // Retângulo ajustado para o código de barras de 44 dígitos
+        facingMode: "environment" // Usa a câmera traseira do iPhone
+      },
+      false
+    );
+    html5QrcodeScanner.render(onScanSuccess);
+  }
 
-        input.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                const code = input.value.trim();
-                
-                if (code !== "") {
-                    processarLeitura(code);
-                }
-                
-                // Limpa o campo para a próxima leitura
-                input.value = '';
-            }
-        });
+  function onScanSuccess(decodedText) {
+    // Para a câmera após a leitura
+    html5QrcodeScanner.clear();
 
-        function processarLeitura(codigo) {
-            console.log("Código capturado: " + codigo);
-            display.innerText = codigo;
+    // Remove qualquer caractere que não seja número para extrair a chave
+    let chave = decodedText.replace(/\D/g, ''); 
 
-            // Efeito visual de confirmação
-            display.style.color = '#10b981';
-            setTimeout(() => {
-                display.style.color = '#2563eb';
-            }, 500);
+    document.getElementById('result').style.display = 'block';
+    
+    if (chave.length === 44) {
+      document.getElementById('chaveText').innerText = chave;
+      
+      // Monta o URL do MeuDanfe direcionado à chave lida
+      let urlMeuDanfe = `https://meudanfe.com.br/danfe/${chave}`;
+      
+      // Texto da mensagem formatada para o WhatsApp
+      let mensagem = `Olá! Segue a chave da Nota Fiscal para baixar o XML:\n\n*Chave:* ${chave}\n\n*Link direto no MeuDanfe:*\n${urlMeuDanfe}`;
+      
+      // Atualiza os links dos botões
+      document.getElementById('btnZap').href = `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
+      document.getElementById('btnMeuDanfe').href = urlMeuDanfe;
+    } else {
+      // Caso não seja um código de barras de 44 dígitos
+      document.getElementById('chaveText').innerText = decodedText;
+      let mensagem = `Código lido da NF:\n${decodedText}`;
+      
+      document.getElementById('btnZap').href = `https://wa.me/?text=${encodeURIComponent(mensagem)}`;
+      document.getElementById('btnMeuDanfe').href = "https://meudanfe.com.br/";
+    }
+  }
 
-            // Aqui você pode adicionar sua lógica de busca no banco de dados
-            // Ex: buscarProduto(codigo);
-        }
+  function reiniciarScanner() {
+    document.getElementById('result').style.display = 'none';
+    iniciarScanner();
+  }
 
-        // Mantém o foco inicial
-        window.onload = () => input.focus();
-    </script>
+  // Inicializa o leitor ao carregar
+  iniciarScanner();
+</script>
+
 </body>
 </html>
