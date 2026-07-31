@@ -3,9 +3,9 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Leitor OCR de NF-e</title>
+  <title>Leitor Sequencial NF-e</title>
   
-  <!-- Biblioteca Tesseract.js para OCR direto no navegador -->
+  <!-- Tesseract OCR -->
   <script src="https://unpkg.com/tesseract.js@v5.0.2/dist/tesseract.min.js"></script>
   
   <style>
@@ -23,16 +23,15 @@
       max-width: 500px;
       width: 100%;
       background: #fff;
-      padding: 25px;
+      padding: 20px;
       border-radius: 20px;
       box-shadow: 0 8px 24px rgba(0,0,0,0.1);
       text-align: center;
       box-sizing: border-box;
     }
     h2 { margin-top: 0; color: #007aff; }
-    p.instrucao { font-size: 15px; color: #606770; margin-bottom: 20px; }
+    p.instrucao { font-size: 14px; color: #606770; margin-bottom: 20px; }
 
-    /* Botão de foto estilizado como iOS */
     .btn-camera-label {
       display: inline-block;
       padding: 16px 32px;
@@ -42,28 +41,24 @@
       border-radius: 12px;
       font-size: 16px;
       cursor: pointer;
-      transition: background-color 0.2s;
       box-shadow: 0 4px 12px rgba(0,122,255,0.3);
     }
-    .btn-camera-label:active { background-color: #0056b3; }
 
-    /* Área de Preview e Processamento */
     #previewContainer {
       margin-top: 20px;
       display: none;
       position: relative;
     }
-    #imagePreview {
+    #canvasCrop {
       max-width: 100%;
-      max-height: 250px;
       border-radius: 12px;
-      border: 2px solid #ddd;
+      border: 2px solid #007aff;
     }
     #loadingOverlay {
       display: none;
       position: absolute;
       top: 0; left: 0; width: 100%; height: 100%;
-      background: rgba(255,255,255,0.8);
+      background: rgba(255,255,255,0.85);
       border-radius: 12px;
       align-items: center;
       justify-content: center;
@@ -71,10 +66,9 @@
       color: #007aff;
     }
 
-    /* Caixa de Resultado */
     .result-box {
-      margin-top: 25px;
-      padding: 20px;
+      margin-top: 20px;
+      padding: 15px;
       background: #f8f9fa;
       border-radius: 12px;
       border: 1px solid #e1e4e8;
@@ -87,15 +81,14 @@
     
     #chaveDisplay {
       font-family: 'Courier New', Courier, monospace;
-      font-size: 16px;
+      font-size: 15px;
       font-weight: bold;
       background: #e9ecef;
-      padding: 10px;
+      padding: 12px;
       border-radius: 6px;
       letter-spacing: 1px;
     }
 
-    /* Botões de Ação */
     .btn-action {
       display: block;
       width: 100%;
@@ -105,36 +98,33 @@
       font-weight: bold;
       border-radius: 10px;
       font-size: 16px;
-      margin-top: 12px;
+      margin-top: 10px;
       border: none;
       cursor: pointer;
     }
     .btn-whatsapp { background-color: #25D366; }
     .btn-meudanfe { background-color: #0d6efd; }
-    .btn-reset { background-color: #6c757d; margin-top: 20px; }
-
+    .btn-reset { background-color: #6c757d; margin-top: 15px; }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h2>Leitor OCR de NF-e</h2>
-  <p class="instrucao">Tire uma foto que mostre claramente o texto "CHAVE DE ACESSO" e os números abaixo dela.</p>
+  <h2>Leitor de Chave NF-e</h2>
+  <p class="instrucao">Fotografe centralizando <strong>apenas a linha de 44 números da Chave de Acesso</strong>.</p>
 
-  <!-- Botão Nativo que aciona a câmera no iOS -->
   <label for="fileInput" class="btn-camera-label">
-    📸 Tirar Foto da Chave
+    📸 Fotografar Chave
   </label>
-  <!-- capture="environment" sugere o uso da câmera traseira -->
-  <input type="file" id="fileInput" accept="image/*" capture="environment" style="display: none;" onchange="processarImagemComOCR(event)">
+  <input type="file" id="fileInput" accept="image/*" capture="environment" style="display: none;" onchange="processarFotoSequencial(event)">
 
-  <!-- Container de Preview -->
+  <!-- Área onde mostramos o recorte processado -->
   <div id="previewContainer">
-    <img id="imagePreview" alt="Preview">
-    <div id="loadingOverlay">⏳ Lendo texto...</div>
+    <p style="font-size:12px; color:#666; margin-bottom: 5px;">Área recortada para análise:</p>
+    <canvas id="canvasCrop"></canvas>
+    <div id="loadingOverlay">⏳ Lendo da esquerda para a direita...</div>
   </div>
 
-  <!-- Área de Resultados -->
   <div id="resultBox" class="result-box">
     <div id="statusLabel" class="status-text"></div>
     <div id="chaveDisplay"></div>
@@ -149,87 +139,104 @@
 </div>
 
 <script>
-  // Inicializa o Worker do Tesseract.js (português)
-  // Isso pode demorar alguns segundos no primeiro carregamento
   let worker = null;
-  async function carregarWorker() {
+
+  async function iniciarWorker() {
     if (!worker) {
-      worker = await Tesseract.createWorker('por'); // 'por' para Português
+      worker = await Tesseract.createWorker('eng'); // Inglês é mais rápido e preciso para apenas números
     }
   }
-  carregarWorker(); // Pré-carrega
+  iniciarWorker();
 
-  async function processarImagemComOCR(event) {
+  async function processarFotoSequencial(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // UI: Mostrar Preview e Loading
-    const preview = document.getElementById('imagePreview');
-    preview.src = URL.createObjectURL(file);
     document.getElementById('previewContainer').style.display = 'block';
     document.getElementById('loadingOverlay').style.display = 'flex';
     document.getElementById('resultBox').style.display = 'none';
-    document.getElementById('actionButtons').style.display = 'none';
 
-    try {
-      await carregarWorker(); // Garante que está carregado
-      
-      // Executa o reconhecimento de texto na imagem
-      const { data: { text } } = await worker.recognize(file);
-      
-      console.log("Texto extraído:", text); // Para debug
+    // 1. Carrega a imagem original num elemento Image
+    const img = new Image();
+    img.src = URL.createObjectURL(file);
 
-      // Limpa o texto: mantém apenas números
-      const apenasNumeros = text.replace(/\D/g, '');
-      console.log("Números extraídos:", apenasNumeros);
+    img.onload = async () => {
+      // 2. Faz o RECORTE AUTOMÁTICO na área central da imagem (focado onde fica a chave)
+      const canvas = document.getElementById('canvasCrop');
+      const ctx = canvas.getContext('2d');
 
-      // Tenta encontrar uma sequência de 44 dígitos dentro do texto extraído
-      // Isso é mais robusto do que pegar tudo, caso haja outros números na NF
-      const matchChave = apenasNumeros.match(/\d{44}/);
-      
-      document.getElementById('loadingOverlay').style.display = 'none';
-      document.getElementById('resultBox').style.display = 'block';
-      const statusLabel = document.getElementById('statusLabel');
-      const chaveDisplay = document.getElementById('chaveDisplay');
+      // Definimos o recorte pegando 90% da largura e 35% da altura central
+      const cropX = img.width * 0.05;
+      const cropY = img.height * 0.35; // Foco na faixa central da folha
+      const cropWidth = img.width * 0.90;
+      const cropHeight = img.height * 0.30;
 
-      if (matchChave) {
-        // SUCESSO: Encontrou os 44 dígitos
-        const chaveFinal = matchChave[0];
-        
-        statusLabel.innerText = "✅ Chave de Acesso lida com sucesso!";
-        statusLabel.className = "status-text status-success";
-        
-        // Formata a chave em blocos de 4 para facilitar a leitura humana (opcional)
-        chaveDisplay.innerText = chaveFinal.replace(/(\d{4})/g, '$1 ').trim();
-        
-        configurarBotoesAcao(chaveFinal);
-      } else {
-        // FALHA: Não encontrou 44 dígitos seguidos
-        statusLabel.innerText = "❌ Não foi possível ler a chave de 44 dígitos.";
-        statusLabel.className = "status-text status-fail";
-        
-        if (apenasNumeros.length > 0) {
-            chaveDisplay.innerText = `Lidos ${apenasNumeros.length} dígitos esparsos. Texto muito sujo ou desfocado.`;
+      canvas.width = cropWidth;
+      canvas.height = cropHeight;
+
+      // Desenha apenas essa região no canvas
+      ctx.drawImage(img, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
+
+      try {
+        await iniciarWorker();
+
+        // 3. Configura o OCR para reconhecer APENAS NÚMEROS e na orientação horizontal normal (Left to Right)
+        await worker.setParameters({
+          tessedit_char_whitelist: '0123456789', // Força ler apenas dígitos
+          tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE // Força o leitor a tratar como UMA LINHA ÚNICA da esq. para dir.
+        });
+
+        // Executa a leitura no canvas recortado
+        const { data: { text } } = await worker.recognize(canvas);
+
+        // Remove qualquer caractere invisível ou espaço
+        const apenasNumeros = text.replace(/\D/g, '');
+
+        document.getElementById('loadingOverlay').style.display = 'none';
+        document.getElementById('resultBox').style.display = 'block';
+
+        const statusLabel = document.getElementById('statusLabel');
+        const chaveDisplay = document.getElementById('chaveDisplay');
+
+        // Se encontrar uma sequência exata ou aproximada
+        if (apenasNumeros.length === 44) {
+          statusLabel.innerText = "✅ Leitura Perfeita! (44 Dígitos)";
+          statusLabel.className = "status-text status-success";
+          chaveDisplay.innerText = apenasNumeros;
+          configurarBotoes(apenasNumeros);
+        } else if (apenasNumeros.length > 35 && apenasNumeros.length < 44) {
+          // Se ler quase tudo, avisa o usuário qual parte faltou
+          statusLabel.innerText = `⚠️ Leitura Incompleta (${apenasNumeros.length}/44 dígitos).`;
+          statusLabel.className = "status-text status-fail";
+          chaveDisplay.innerText = apenasNumeros + "\n\n(Aproxime um pouco mais a foto da linha da chave)";
         } else {
-            chaveDisplay.innerText = "Nenhum número detectado. Tente focar melhor no texto.";
+          // Tenta extrair qualquer padrão de 44 números se a string total ficou maior
+          const match = apenasNumeros.match(/\d{44}/);
+          if (match) {
+            statusLabel.innerText = "✅ Chave Extraída Sequencialmente!";
+            statusLabel.className = "status-text status-success";
+            chaveDisplay.innerText = match[0];
+            configurarBotoes(match[0]);
+          } else {
+            statusLabel.innerText = `❌ Falha na leitura sequencial (${apenasNumeros.length} números identificados).`;
+            statusLabel.className = "status-text status-fail";
+            chaveDisplay.innerText = apenasNumeros.length > 0 ? apenasNumeros : "Nenhum número nítido encontrado.";
+          }
         }
-      }
 
-    } catch (error) {
-      console.error("Erro no OCR:", error);
-      document.getElementById('loadingOverlay').style.display = 'none';
-      alert("Ocorreu um erro ao processar a imagem.");
-    }
+      } catch (err) {
+        console.error(err);
+        document.getElementById('loadingOverlay').style.display = 'none';
+        alert("Erro ao processar imagem.");
+      }
+    };
   }
 
-  function configurarBotoesAcao(chave) {
+  function configurarBotoes(chave) {
     document.getElementById('actionButtons').style.display = 'block';
-    
-    // Configura o link do MeuDanfe
     const urlMeuDanfe = `https://meudanfe.com.br/danfe/${chave}`;
     document.getElementById('btnMeuDanfe').href = urlMeuDanfe;
     
-    // Configura a mensagem do WhatsApp
     const mensagemZap = `Olá! Segue a chave da Nota Fiscal para baixar o XML:\n\n*Chave:* ${chave}\n\n*Link direto no MeuDanfe:*\n${urlMeuDanfe}`;
     document.getElementById('btnZap').href = `https://wa.me/?text=${encodeURIComponent(mensagemZap)}`;
   }
