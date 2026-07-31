@@ -3,187 +3,240 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Leitor de NF - Foto</title>
-  <!-- Biblioteca html5-qrcode -->
-  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+  <title>Leitor OCR de NF-e</title>
+  
+  <!-- Biblioteca Tesseract.js para OCR direto no navegador -->
+  <script src="https://unpkg.com/tesseract.js@v5.0.2/dist/tesseract.min.js"></script>
   
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #f4f4f9;
+      background-color: #f0f2f5;
       margin: 0;
       padding: 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
+      color: #1c1e21;
     }
     .container {
-      max-width: 480px;
+      max-width: 500px;
       width: 100%;
       background: #fff;
-      padding: 20px;
-      border-radius: 16px;
-      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 25px;
+      border-radius: 20px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
       text-align: center;
       box-sizing: border-box;
     }
+    h2 { margin-top: 0; color: #007aff; }
+    p.instrucao { font-size: 15px; color: #606770; margin-bottom: 20px; }
+
+    /* Botão de foto estilizado como iOS */
+    .btn-camera-label {
+      display: inline-block;
+      padding: 16px 32px;
+      background-color: #007aff;
+      color: white;
+      font-weight: 600;
+      border-radius: 12px;
+      font-size: 16px;
+      cursor: pointer;
+      transition: background-color 0.2s;
+      box-shadow: 0 4px 12px rgba(0,122,255,0.3);
+    }
+    .btn-camera-label:active { background-color: #0056b3; }
+
+    /* Área de Preview e Processamento */
+    #previewContainer {
+      margin-top: 20px;
+      display: none;
+      position: relative;
+    }
+    #imagePreview {
+      max-width: 100%;
+      max-height: 250px;
+      border-radius: 12px;
+      border: 2px solid #ddd;
+    }
+    #loadingOverlay {
+      display: none;
+      position: absolute;
+      top: 0; left: 0; width: 100%; height: 100%;
+      background: rgba(255,255,255,0.8);
+      border-radius: 12px;
+      align-items: center;
+      justify-content: center;
+      font-weight: bold;
+      color: #007aff;
+    }
+
+    /* Caixa de Resultado */
+    .result-box {
+      margin-top: 25px;
+      padding: 20px;
+      background: #f8f9fa;
+      border-radius: 12px;
+      border: 1px solid #e1e4e8;
+      display: none;
+      word-break: break-all;
+    }
+    .status-text { font-size: 14px; font-weight: bold; margin-bottom: 10px; }
+    .status-success { color: #28a745; }
+    .status-fail { color: #dc3545; }
     
-    /* Botões principais */
-    .btn {
+    #chaveDisplay {
+      font-family: 'Courier New', Courier, monospace;
+      font-size: 16px;
+      font-weight: bold;
+      background: #e9ecef;
+      padding: 10px;
+      border-radius: 6px;
+      letter-spacing: 1px;
+    }
+
+    /* Botões de Ação */
+    .btn-action {
       display: block;
       width: 100%;
-      padding: 16px 0;
+      padding: 15px 0;
       color: white;
       text-decoration: none;
       font-weight: bold;
       border-radius: 10px;
       font-size: 16px;
-      box-sizing: border-box;
+      margin-top: 12px;
       border: none;
       cursor: pointer;
-      margin-top: 10px;
     }
-    .btn-camera { background-color: #007aff; } /* Azul Apple */
     .btn-whatsapp { background-color: #25D366; }
     .btn-meudanfe { background-color: #0d6efd; }
-    .btn-reset { background-color: #6c757d; margin-top: 15px; }
+    .btn-reset { background-color: #6c757d; margin-top: 20px; }
 
-    /* Caixa de Status / Feedback */
-    .status-box {
-      margin-top: 15px;
-      padding: 12px;
-      border-radius: 8px;
-      font-weight: bold;
-      font-size: 14px;
-      display: none;
-    }
-    .status-sucesso { background-color: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
-    .status-incompleto { background-color: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
-    .status-erro { background-color: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
-
-    /* Preview da Imagem */
-    #imagePreview {
-      max-width: 100%;
-      max-height: 200px;
-      border-radius: 8px;
-      margin-top: 15px;
-      display: none;
-      border: 1px solid #ddd;
-    }
-
-    .result-box {
-      margin-top: 15px;
-      padding: 15px;
-      background: #f8f9fa;
-      border-radius: 8px;
-      word-break: break-all;
-      display: none;
-    }
   </style>
 </head>
 <body>
 
 <div class="container">
-  <h3 style="margin-top:0;">Leitor de Nota Fiscal</h3>
-  <p style="font-size: 14px; color: #666;">Tire uma foto nítida do código de barras da NF para processar.</p>
+  <h2>Leitor OCR de NF-e</h2>
+  <p class="instrucao">Tire uma foto que mostre claramente o texto "CHAVE DE ACESSO" e os números abaixo dela.</p>
 
-  <!-- Botão que abre a Câmera Nativa do iPhone -->
-  <label for="fileInput" class="btn btn-camera">
-    📸 Fotografar Código de Barras
+  <!-- Botão Nativo que aciona a câmera no iOS -->
+  <label for="fileInput" class="btn-camera-label">
+    📸 Tirar Foto da Chave
   </label>
-  <input type="file" id="fileInput" accept="image/*" capture="environment" style="display: none;" onchange="processarFoto(event)">
+  <!-- capture="environment" sugere o uso da câmera traseira -->
+  <input type="file" id="fileInput" accept="image/*" capture="environment" style="display: none;" onchange="processarImagemComOCR(event)">
 
-  <!-- Imagem tirada (Preview) -->
-  <img id="imagePreview" alt="Preview da Foto">
+  <!-- Container de Preview -->
+  <div id="previewContainer">
+    <img id="imagePreview" alt="Preview">
+    <div id="loadingOverlay">⏳ Lendo texto...</div>
+  </div>
 
-  <!-- Mensagem de Feedback de Leitura -->
-  <div id="statusBox" class="status-box"></div>
-
-  <!-- Resultado e Ações -->
+  <!-- Área de Resultados -->
   <div id="resultBox" class="result-box">
-    <p style="margin: 0 0 5px 0; font-size: 13px; color: #666;">Chave Extraída:</p>
-    <p id="chaveText" style="font-weight: bold; font-family: monospace; font-size: 15px; margin-top: 0;"></p>
+    <div id="statusLabel" class="status-text"></div>
+    <div id="chaveDisplay"></div>
 
-    <a id="btnZap" class="btn btn-whatsapp" target="_blank">Enviar via WhatsApp</a>
-    <a id="btnMeuDanfe" class="btn btn-meudanfe" target="_blank">Baixar XML no MeuDanfe</a>
+    <div id="actionButtons" style="display: none;">
+      <a id="btnZap" class="btn-action btn-whatsapp" target="_blank">Enviar via WhatsApp</a>
+      <a id="btnMeuDanfe" class="btn-action btn-meudanfe" target="_blank">Baixar XML no MeuDanfe</a>
+    </div>
     
-    <button onclick="limpar()" class="btn btn-reset">Tirar Outra Foto</button>
+    <button onclick="reiniciar()" class="btn-action btn-reset">Tirar Nova Foto</button>
   </div>
 </div>
 
-<!-- Elemento invisível para a biblioteca processar a imagem -->
-<div id="hiddenReader" style="display: none;"></div>
-
 <script>
-  const html5QrCode = new Html5Qrcode("hiddenReader");
+  // Inicializa o Worker do Tesseract.js (português)
+  // Isso pode demorar alguns segundos no primeiro carregamento
+  let worker = null;
+  async function carregarWorker() {
+    if (!worker) {
+      worker = await Tesseract.createWorker('por'); // 'por' para Português
+    }
+  }
+  carregarWorker(); // Pré-carrega
 
-  async function processarFoto(event) {
+  async function processarImagemComOCR(event) {
     const file = event.target.files[0];
     if (!file) return;
 
-    // Mostrar Preview da Foto
+    // UI: Mostrar Preview e Loading
     const preview = document.getElementById('imagePreview');
     preview.src = URL.createObjectURL(file);
-    preview.style.display = 'block';
-
-    // Exibir mensagem de processamento
-    exibirStatus("⏳ Processando e analisando imagem...", "incompleto");
-    ocultarResultado();
+    document.getElementById('previewContainer').style.display = 'block';
+    document.getElementById('loadingOverlay').style.display = 'flex';
+    document.getElementById('resultBox').style.display = 'none';
+    document.getElementById('actionButtons').style.display = 'none';
 
     try {
-      // Faz o escaneamento direto do arquivo de imagem em alta resolução
-      const decodedText = await html5QrCode.scanFile(file, true);
+      await carregarWorker(); // Garante que está carregado
       
-      // Extrai apenas os números do texto lido
-      const apenasNumeros = decodedText.replace(/\D/g, '');
+      // Executa o reconhecimento de texto na imagem
+      const { data: { text } } = await worker.recognize(file);
+      
+      console.log("Texto extraído:", text); // Para debug
 
-      // VALIDAÇÃO DA LEITURA
-      if (apenasNumeros.length === 44) {
-        // LEITURA PERFEITA
-        exibirStatus("✅ Sucesso! Código de 44 dígitos lido completamente.", "sucesso");
-        exibirResultado(apenasNumeros);
-      } else if (apenasNumeros.length > 0) {
-        // LEITURA INCOMPLETA / PARCIAL
-        exibirStatus(`⚠️ Código lido com falha! Foram identificados apenas ${apenasNumeros.length} de 44 dígitos. Tire a foto novamente mais perto e focada.`, "incompleto");
-        exibirResultado(decodedText);
+      // Limpa o texto: mantém apenas números
+      const apenasNumeros = text.replace(/\D/g, '');
+      console.log("Números extraídos:", apenasNumeros);
+
+      // Tenta encontrar uma sequência de 44 dígitos dentro do texto extraído
+      // Isso é mais robusto do que pegar tudo, caso haja outros números na NF
+      const matchChave = apenasNumeros.match(/\d{44}/);
+      
+      document.getElementById('loadingOverlay').style.display = 'none';
+      document.getElementById('resultBox').style.display = 'block';
+      const statusLabel = document.getElementById('statusLabel');
+      const chaveDisplay = document.getElementById('chaveDisplay');
+
+      if (matchChave) {
+        // SUCESSO: Encontrou os 44 dígitos
+        const chaveFinal = matchChave[0];
+        
+        statusLabel.innerText = "✅ Chave de Acesso lida com sucesso!";
+        statusLabel.className = "status-text status-success";
+        
+        // Formata a chave em blocos de 4 para facilitar a leitura humana (opcional)
+        chaveDisplay.innerText = chaveFinal.replace(/(\d{4})/g, '$1 ').trim();
+        
+        configurarBotoesAcao(chaveFinal);
       } else {
-        // LEU OUTRO FORMATO DE TEXTO
-        exibirStatus(`⚠️ Texto detectado, mas não corresponde a uma chave NF-e válida.`, "incompleto");
-        exibirResultado(decodedText);
+        // FALHA: Não encontrou 44 dígitos seguidos
+        statusLabel.innerText = "❌ Não foi possível ler a chave de 44 dígitos.";
+        statusLabel.className = "status-text status-fail";
+        
+        if (apenasNumeros.length > 0) {
+            chaveDisplay.innerText = `Lidos ${apenasNumeros.length} dígitos esparsos. Texto muito sujo ou desfocado.`;
+        } else {
+            chaveDisplay.innerText = "Nenhum número detectado. Tente focar melhor no texto.";
+        }
       }
 
-    } catch (err) {
-      // NENHUM CÓDIGO DETECTADO
-      exibirStatus("❌ Nenhum código de barras foi encontrado na foto. Verifique se a imagem está focada e bem iluminada.", "erro");
+    } catch (error) {
+      console.error("Erro no OCR:", error);
+      document.getElementById('loadingOverlay').style.display = 'none';
+      alert("Ocorreu um erro ao processar a imagem.");
     }
   }
 
-  function exibirStatus(mensagem, tipo) {
-    const statusBox = document.getElementById('statusBox');
-    statusBox.innerText = mensagem;
-    statusBox.className = `status-box status-${tipo}`;
-    statusBox.style.display = 'block';
-  }
-
-  function exibirResultado(chave) {
-    document.getElementById('resultBox').style.display = 'block';
-    document.getElementById('chaveText').innerText = chave;
-
-    let urlMeuDanfe = `https://meudanfe.com.br/danfe/${chave}`;
-    let mensagemZap = `Olá! Segue a chave da Nota Fiscal para baixar o XML:\n\n*Chave:* ${chave}\n\n*Link direto no MeuDanfe:*\n${urlMeuDanfe}`;
-
-    document.getElementById('btnZap').href = `https://wa.me/?text=${encodeURIComponent(mensagemZap)}`;
+  function configurarBotoesAcao(chave) {
+    document.getElementById('actionButtons').style.display = 'block';
+    
+    // Configura o link do MeuDanfe
+    const urlMeuDanfe = `https://meudanfe.com.br/danfe/${chave}`;
     document.getElementById('btnMeuDanfe').href = urlMeuDanfe;
+    
+    // Configura a mensagem do WhatsApp
+    const mensagemZap = `Olá! Segue a chave da Nota Fiscal para baixar o XML:\n\n*Chave:* ${chave}\n\n*Link direto no MeuDanfe:*\n${urlMeuDanfe}`;
+    document.getElementById('btnZap').href = `https://wa.me/?text=${encodeURIComponent(mensagemZap)}`;
   }
 
-  function ocultarResultado() {
-    document.getElementById('resultBox').style.display = 'none';
-  }
-
-  function limpar() {
+  function reiniciar() {
     document.getElementById('fileInput').value = "";
-    document.getElementById('imagePreview').style.display = 'none';
-    document.getElementById('statusBox').style.display = 'none';
+    document.getElementById('previewContainer').style.display = 'none';
     document.getElementById('resultBox').style.display = 'none';
   }
 </script>
