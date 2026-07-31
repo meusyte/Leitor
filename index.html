@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Consulta DANFE / XML</title>
+  <title>Leitor de Chave - MeuDanfe</title>
   
   <!-- Tesseract OCR -->
   <script src="https://unpkg.com/tesseract.js@v5.0.2/dist/tesseract.min.js"></script>
@@ -33,7 +33,7 @@
     .btn-camera {
       display: block;
       width: 100%;
-      padding: 12px 0;
+      padding: 14px 0;
       background-color: #0d6efd;
       color: white;
       font-weight: bold;
@@ -44,7 +44,7 @@
       margin-bottom: 12px;
     }
 
-    /* Container do Canvas em formato compacto (faixa horizontal de chave) */
+    /* Container de Visualização Compacto */
     #editorContainer {
       display: none;
       margin-bottom: 15px;
@@ -61,10 +61,9 @@
       font-weight: 500;
     }
     
-    /* Caixilho ajustado para caber na tela sem rolar */
     .canvas-wrapper {
       width: 100%;
-      max-height: 220px; /* Limita a altura da imagem para não poluir a tela */
+      max-height: 220px;
       overflow: hidden;
       display: flex;
       justify-content: center;
@@ -91,9 +90,9 @@
       cursor: pointer;
     }
 
-    /* --- CAMPO IDÊNTICO AO SEU FORMULÁRIO --- */
+    /* Seção de Busca (Design Exato do MeuDanfe) */
     .search-section {
-      margin-top: 10px;
+      margin-top: 15px;
     }
     .search-label {
       font-size: 13px;
@@ -153,13 +152,13 @@
 
 <div class="container">
 
-  <!-- Botão de Captura de Imagem -->
+  <!-- Botão de Captura -->
   <label for="fileInput" class="btn-camera">
     📸 Tirar / Escolher Foto
   </label>
   <input type="file" id="fileInput" accept="image/*" capture="environment" style="display: none;" onchange="carregarFoto(event)">
 
-  <!-- Área da Câmera Compacta -->
+  <!-- Editor de Seleção -->
   <div id="editorContainer">
     <div class="dica-selecao">
       👆 Passe o dedo selecionando <strong>Apenas os Números</strong>
@@ -167,18 +166,18 @@
     <div class="canvas-wrapper">
       <canvas id="canvasImage"></canvas>
     </div>
-    <button class="btn-ler" onclick="processarSelecao()">⚡ Ler Seleção</button>
+    <button class="btn-ler" onclick="processarSelecaoHD()">⚡ Ler Seleção em Alta Definição</button>
   </div>
 
-  <!-- Campo do Formulário MeuDanfe -->
+  <!-- Formulário MeuDanfe -->
   <div class="search-section">
     <span class="search-label">
       Informe abaixo a chave de acesso da NF-e ou CT-e para gerar o DANFE/DACTE em PDF ou Baixar o XML:
     </span>
     
     <div class="search-box">
-      <input type="text" id="chaveInput" placeholder="Aguardando seleção..." maxlength="44" oninput="validarDigitos()">
-      <button id="btnBuscar" class="btn-buscar" onclick="buscarNota()">
+      <input type="text" id="searchTxt" placeholder="Chave de Acesso:" maxlength="44" oninput="validarDigitos()">
+      <button id="searchBtn" class="btn-buscar" onclick="buscarNota()">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
           <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
           <polyline points="14 2 14 8 20 8"></polyline>
@@ -204,13 +203,12 @@
   let rectX = 0, rectY = 0, rectW = 0, rectH = 0;
   let worker = null;
 
-  // OCR Restrito APENAS a Números
   async function initOCR() {
     if (!worker) {
       worker = await Tesseract.createWorker('eng');
       await worker.setParameters({
-        tessedit_char_whitelist: '0123456789', // Ignora qualquer letra ou símbolo
-        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE // Foco na linha numérica
+        tessedit_char_whitelist: '0123456789',
+        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE
       });
     }
   }
@@ -245,7 +243,7 @@
     }
   }
 
-  // Toque na tela
+  // Eventos do Toque
   canvas.addEventListener('touchstart', (e) => {
     e.preventDefault();
     const touch = e.touches[0];
@@ -274,17 +272,19 @@
 
   canvas.addEventListener('touchend', () => { isDrawing = false; });
 
-  async function processarSelecao() {
+  // PROCESSAMENTO EM ALTA DEFINIÇÃO (HD)
+  async function processarSelecaoHD() {
     if (rectW === 0 || rectH === 0) {
       alert("Por favor, selecione com o dedo apenas a linha dos números.");
       return;
     }
 
-    const input = document.getElementById('chaveInput');
+    const input = document.getElementById('searchTxt');
     const status = document.getElementById('statusMsg');
-    status.innerText = "⏳ Extraindo números...";
+    status.innerText = "⏳ Lendo em HD...";
     status.className = "status-info";
 
+    // Mapeamento proporcional exato na foto original de ALTA RESOLUÇÃO
     const scaleX = imgOriginal.width / canvas.width;
     const scaleY = imgOriginal.height / canvas.height;
 
@@ -293,18 +293,29 @@
     const realW = rectW * scaleX;
     const realH = rectH * scaleY;
 
-    const tempCanvas = document.createElement('canvas');
-    tempCanvas.width = realW;
-    tempCanvas.height = realH;
-    const tempCtx = tempCanvas.getContext('2d');
+    // Canvas com resolução total da foto capturada pelo iPhone
+    const hdCanvas = document.createElement('canvas');
+    hdCanvas.width = realW;
+    hdCanvas.height = realH;
+    const hdCtx = hdCanvas.getContext('2d');
 
-    tempCtx.drawImage(imgOriginal, realX, realY, realW, realH, 0, 0, realW, realH);
+    // Desenha a fatia na resolução máxima da câmera
+    hdCtx.drawImage(imgOriginal, realX, realY, realW, realH, 0, 0, realW, realH);
+
+    // Binarização: aumenta nitidez para fundo branco e números pretos
+    const imgData = hdCtx.getImageData(0, 0, realW, realH);
+    const d = imgData.data;
+    for (let i = 0; i < d.length; i += 4) {
+      let avg = (d[i] + d[i + 1] + d[i + 2]) / 3;
+      let v = avg < 128 ? 0 : 255; // Limiar de alto contraste
+      d[i] = d[i + 1] = d[i + 2] = v;
+    }
+    hdCtx.putImageData(imgData, 0, 0);
 
     try {
       await initOCR();
-      const { data: { text } } = await worker.recognize(tempCanvas);
+      const { data: { text } } = await worker.recognize(hdCanvas);
       
-      // FILTRO: Garante estritamente APENAS números de 0 a 9
       const apenasNumeros = text.replace(/[^0-9]/g, '');
 
       input.value = apenasNumeros;
@@ -312,15 +323,14 @@
 
     } catch (err) {
       console.error(err);
-      status.innerText = "Erro ao processar a seleção.";
+      status.innerText = "Erro ao processar imagem em HD.";
     }
   }
 
   function validarDigitos() {
-    const input = document.getElementById('chaveInput');
+    const input = document.getElementById('searchTxt');
     const status = document.getElementById('statusMsg');
     
-    // Limpeza extra em tempo real caso o usuário digite
     let limpo = input.value.replace(/[^0-9]/g, '');
     input.value = limpo;
 
@@ -336,9 +346,9 @@
   }
 
   function buscarNota() {
-    const chave = document.getElementById('chaveInput').value.trim();
+    const chave = document.getElementById('searchTxt').value.trim();
     if (chave.length !== 44) {
-      alert("A chave precisa ter exatamente 44 números.");
+      alert("A chave de acesso deve conter exatamente 44 números.");
       return;
     }
     window.open(`https://meudanfe.com.br/danfe/${chave}`, '_blank');
