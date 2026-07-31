@@ -3,129 +3,92 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-  <title>Leitor de Chave NF-e</title>
-  
-  <!-- Tesseract OCR -->
-  <script src="https://unpkg.com/tesseract.js@v5.0.2/dist/tesseract.min.js"></script>
-  
+  <title>Leitor & Copiador de Chave NF-e</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      background-color: #121212;
-      color: #fff;
+      background-color: #f0f2f5;
+      color: #1c1e21;
       margin: 0;
-      padding: 0;
+      padding: 15px;
       display: flex;
       flex-direction: column;
       align-items: center;
-      min-height: 100vh;
     }
-    .header {
-      padding: 15px;
+    .container {
+      max-width: 480px;
+      width: 100%;
+      background: #fff;
+      padding: 20px;
+      border-radius: 16px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      box-sizing: border-box;
       text-align: center;
     }
-    .header h3 { margin: 0; font-size: 18px; color: #0a84ff; }
-    .header p { margin: 5px 0 0 0; font-size: 13px; color: #aaa; }
+    h2 { margin-top: 0; color: #007aff; }
+    p { font-size: 14px; color: #606770; line-height: 1.4; }
 
-    /* Container da Câmera com Máscara Visual */
-    .camera-container {
-      position: relative;
+    .btn-camera {
+      display: inline-block;
       width: 100%;
-      max-width: 480px;
-      height: 320px;
-      background: #000;
-      overflow: hidden;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    video {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-    }
-
-    /* MÁSCARA / RETÂNGULO DE GUIA (MIRA) */
-    .overlay-guide {
-      position: absolute;
-      width: 85%;
-      height: 60px; /* Altura exata para caber apenas a linha dos números */
-      border: 3px solid #0a84ff;
-      border-radius: 8px;
-      box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.65); /* Escurece tudo fora do retângulo */
-      box-sizing: border-box;
-      pointer-events: none;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .overlay-guide::after {
-      content: "Posicione os 44 números AQUI";
-      color: rgba(255, 255, 255, 0.7);
-      font-size: 11px;
+      padding: 16px 0;
+      background-color: #007aff;
+      color: white;
       font-weight: bold;
-      letter-spacing: 0.5px;
-    }
-
-    /* Controles */
-    .controls {
-      width: 100%;
-      max-width: 480px;
-      padding: 15px;
-      box-sizing: border-box;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-    }
-
-    .btn-capture {
-      width: 100%;
-      padding: 16px;
-      background-color: #30d158;
-      color: #000;
-      font-weight: bold;
-      font-size: 16px;
-      border: none;
       border-radius: 12px;
+      font-size: 16px;
       cursor: pointer;
-      box-shadow: 0 4px 12px rgba(48, 209, 88, 0.3);
-    }
-    .btn-capture:active { background-color: #248a3d; color: #fff; }
-
-    /* Canvas Escondido para Processamento */
-    #hiddenCanvas { display: none; }
-
-    /* Área de Resultado */
-    .result-box {
-      width: 100%;
-      max-width: 480px;
-      padding: 15px;
       box-sizing: border-box;
+      margin-bottom: 15px;
+    }
+
+    /* Imagem do iPhone onde o usuário pode pressionar para copiar */
+    #imageContainer {
       display: none;
+      margin-top: 10px;
+      position: relative;
     }
-    .card {
-      background: #1c1c1e;
-      padding: 15px;
-      border-radius: 12px;
-      border: 1px solid #2c2c2e;
-      word-break: break-all;
-      text-align: center;
+    #photoPreview {
+      max-width: 100%;
+      border-radius: 10px;
+      border: 2px solid #007aff;
+      /* Propriedades para garantir que o iOS permita a seleção de texto na imagem */
+      -webkit-user-select: text;
+      user-select: text;
     }
-    .status-text { font-size: 14px; font-weight: bold; margin-bottom: 10px; }
-    .status-success { color: #30d158; }
-    .status-fail { color: #ff453a; }
-
-    #chaveDisplay {
-      font-family: monospace;
-      font-size: 16px;
-      font-weight: bold;
-      background: #2c2c2e;
-      padding: 12px;
+    
+    .dica-copia {
+      background: #e7f3ff;
+      color: #0056b3;
+      padding: 10px;
       border-radius: 8px;
-      color: #fff;
-      letter-spacing: 1px;
+      font-size: 13px;
+      margin-bottom: 15px;
+      text-align: left;
     }
 
+    /* Input para Colar a Chave */
+    .input-box {
+      margin-top: 15px;
+      text-align: left;
+    }
+    label { font-weight: bold; font-size: 13px; color: #333; }
+    input[type="text"] {
+      width: 100%;
+      padding: 14px;
+      font-size: 16px;
+      font-family: monospace;
+      border: 2px solid #ccc;
+      border-radius: 10px;
+      box-sizing: border-box;
+      margin-top: 5px;
+    }
+    input[type="text"]:focus {
+      border-color: #007aff;
+      outline: none;
+    }
+
+    /* Botões de Ação */
     .btn-action {
       display: block;
       width: 100%;
@@ -134,160 +97,91 @@
       text-decoration: none;
       font-weight: bold;
       border-radius: 10px;
-      font-size: 15px;
+      font-size: 16px;
       margin-top: 10px;
+      border: none;
+      cursor: pointer;
       text-align: center;
     }
     .btn-whatsapp { background-color: #25D366; }
-    .btn-meudanfe { background-color: #0a84ff; }
-    .btn-reset { background-color: #3a3a3c; border: none; cursor: pointer; }
+    .btn-meudanfe { background-color: #0d6efd; }
+    .status {
+      font-size: 13px;
+      font-weight: bold;
+      margin-top: 6px;
+    }
+    .status-ok { color: #28a745; }
+    .status-erro { color: #dc3545; }
   </style>
 </head>
 <body>
 
-<div class="header">
-  <h3>Leitor de Chave NF-e</h3>
-  <p>Enquadre <strong>somente a linha dos números</strong> na mira azul</p>
-</div>
+<div class="container">
+  <h2>Captura de Chave NF-e</h2>
+  
+  <label for="fileInput" class="btn-camera">
+    📸 1. Tirar Foto da Nota
+  </label>
+  <input type="file" id="fileInput" accept="image/*" capture="environment" style="display: none;" onchange="carregarFoto(event)">
 
-<!-- Câmera com Enquadramento -->
-<div class="camera-container" id="cameraBox">
-  <video id="webcam" autoplay playsinline muted></video>
-  <div class="overlay-guide"></div>
-</div>
-
-<div class="controls" id="controlsBox">
-  <button class="btn-capture" onclick="capturarEReconhecer()">📸 Capturar e Ler Números</button>
-</div>
-
-<!-- Canvas invisível para corte exato -->
-<canvas id="hiddenCanvas"></canvas>
-
-<!-- Exibição de Resultados -->
-<div id="resultBox" class="result-box">
-  <div class="card">
-    <div id="statusLabel" class="status-text"></div>
-    <div id="chaveDisplay"></div>
-
-    <div id="actionButtons" style="display: none;">
-      <a id="btnZap" class="btn-action btn-whatsapp" target="_blank">Enviar via WhatsApp</a>
-      <a id="btnMeuDanfe" class="btn-action btn-meudanfe" target="_blank">Baixar XML no MeuDanfe</a>
+  <div id="imageContainer">
+    <div class="dica-copia">
+      💡 <strong>Dica iPhone:</strong> Mantenha o dedo pressionado em cima dos números na foto abaixo para <strong>Copiar</strong> e depois cole no campo abaixo.
     </div>
+    <img id="photoPreview" alt="Foto da NF">
+  </div>
 
-    <button onclick="reiniciarCultura()" class="btn-action btn-reset">Tentar Novamente</button>
+  <div class="input-box">
+    <label for="chaveInput">2. Cole ou digite a Chave de Acesso aqui:</label>
+    <input type="text" id="chaveInput" placeholder="Cole os 44 números aqui..." oninput="validarEGerarLinks()">
+    <div id="statusChave" class="status"></div>
+  </div>
+
+  <div id="actionButtons" style="display: none;">
+    <a id="btnMeuDanfe" class="btn-action btn-meudanfe" target="_blank">🚀 Baixar XML no MeuDanfe</a>
+    <a id="btnZap" class="btn-action btn-whatsapp" target="_blank">📲 Enviar via WhatsApp</a>
   </div>
 </div>
 
 <script>
-  let video = document.getElementById('webcam');
-  let worker = null;
+  function carregarFoto(event) {
+    const file = event.target.files[0];
+    if (!file) return;
 
-  // 1. Inicializa o Worker do OCR focado em NÚMEROS
-  async function initOCR() {
-    if (!worker) {
-      worker = await Tesseract.createWorker('eng');
-      await worker.setParameters({
-        tessedit_char_whitelist: '0123456789', // Apenas dígitos
-        tessedit_pageseg_mode: Tesseract.PSM.SINGLE_LINE // Leitura em linha única da esq. para dir.
-      });
+    const img = document.getElementById('photoPreview');
+    img.src = URL.createObjectURL(file);
+    document.getElementById('imageContainer').style.display = 'block';
+  }
+
+  function validarEGerarLinks() {
+    const input = document.getElementById('chaveInput');
+    const status = document.getElementById('statusChave');
+    const actionButtons = document.getElementById('actionButtons');
+
+    // Remove qualquer caractere que não seja número (espaços, pontos, etc.)
+    let apenasNumeros = input.value.replace(/\D/g, '');
+
+    if (apenasNumeros.length === 44) {
+      status.innerText = "✅ Chave Válida (44 dígitos)!";
+      status.className = "status status-ok";
+      actionButtons.style.display = "block";
+
+      // Configura os links
+      const urlMeuDanfe = `https://meudanfe.com.br/danfe/${apenasNumeros}`;
+      document.getElementById('btnMeuDanfe').href = urlMeuDanfe;
+
+      const mensagemZap = `Olá! Segue a chave da Nota Fiscal para baixar o XML:\n\n*Chave:* ${apenasNumeros}\n\n*Link direto no MeuDanfe:*\n${urlMeuDanfe}`;
+      document.getElementById('btnZap').href = `https://wa.me/?text=${encodeURIComponent(mensagemZap)}`;
+
+    } else if (apenasNumeros.length > 0) {
+      status.innerText = `⚠️ Chave incompleta (${apenasNumeros.length}/44 dígitos)`;
+      status.className = "status status-erro";
+      actionButtons.style.display = "none";
+    } else {
+      status.innerText = "";
+      actionButtons.style.display = "none";
     }
   }
-
-  // 2. Inicia a Câmera Traseira do iPhone
-  async function startCamera() {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          facingMode: { exact: "environment" },
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
-        }
-      });
-      video.srcObject = stream;
-    } catch (err) {
-      // Fallback para qualquer câmera disponível
-      navigator.mediaDevices.getUserMedia({ video: true })
-        .then(stream => video.srcObject = stream)
-        .catch(e => alert("Permissão de câmera negada ou erro de acesso: " + e));
-    }
-  }
-
-  // 3. Captura APENAS O RETÂNGULO DA MIRA
-  async function capturarEReconhecer() {
-    const statusLabel = document.getElementById('statusLabel');
-    const chaveDisplay = document.getElementById('chaveDisplay');
-    
-    // Mostra indicador de processamento
-    document.getElementById('resultBox').style.display = 'block';
-    document.getElementById('actionButtons').style.display = 'none';
-    statusLabel.innerText = "⏳ Processando números da mira...";
-    statusLabel.className = "status-text";
-    chaveDisplay.innerText = "Lendo...";
-
-    const canvas = document.getElementById('hiddenCanvas');
-    const ctx = canvas.getContext('2d');
-
-    // Calcula exatamente onde a Mira Azul está em relação ao vídeo real
-    const vWidth = video.videoWidth;
-    const vHeight = video.videoHeight;
-
-    // A mira ocupa 85% de largura e ~60px de altura centralizada
-    const cropWidth = vWidth * 0.85;
-    const cropHeight = vHeight * 0.18; // Recorte fino horizontal
-    const cropX = (vWidth - cropWidth) / 2;
-    const cropY = (vHeight - cropHeight) / 2;
-
-    canvas.width = cropWidth;
-    canvas.height = cropHeight;
-
-    // Desenha no canvas SOMENTE a região que estava dentro da mira azul
-    ctx.drawImage(video, cropX, cropY, cropWidth, cropHeight, 0, 0, cropWidth, cropHeight);
-
-    try {
-      await initOCR();
-      
-      // Executa a leitura no pedaço recortado
-      const { data: { text } } = await worker.recognize(canvas);
-      const apenasNumeros = text.replace(/\D/g, '');
-
-      if (apenasNumeros.length === 44) {
-        statusLabel.innerText = "✅ Leitura Perfeita!";
-        statusLabel.className = "status-text status-success";
-        chaveDisplay.innerText = apenasNumeros;
-        configurarBotoes(apenasNumeros);
-      } else if (apenasNumeros.length > 30) {
-        statusLabel.innerText = `⚠️ Incompleto (${apenasNumeros.length}/44 dígitos).`;
-        statusLabel.className = "status-text status-fail";
-        chaveDisplay.innerText = apenasNumeros + "\n\n(Aproxime ou enquadre melhor a linha na mira)";
-      } else {
-        statusLabel.innerText = "❌ Falha na leitura.";
-        statusLabel.className = "status-text status-fail";
-        chaveDisplay.innerText = apenasNumeros.length > 0 ? apenasNumeros : "Nenhum número nítido encontrado.";
-      }
-    } catch (err) {
-      console.error(err);
-      statusLabel.innerText = "Erro ao processar a imagem.";
-    }
-  }
-
-  function configurarBotoes(chave) {
-    document.getElementById('actionButtons').style.display = 'block';
-    const urlMeuDanfe = `https://meudanfe.com.br/danfe/${chave}`;
-    document.getElementById('btnMeuDanfe').href = urlMeuDanfe;
-    
-    const mensagemZap = `Olá! Segue a chave da Nota Fiscal para baixar o XML:\n\n*Chave:* ${chave}\n\n*Link direto no MeuDanfe:*\n${urlMeuDanfe}`;
-    document.getElementById('btnZap').href = `https://wa.me/?text=${encodeURIComponent(mensagemZap)}`;
-  }
-
-  function reiniciarCultura() {
-    document.getElementById('resultBox').style.display = 'none';
-  }
-
-  // Inicializa ao carregar a página
-  window.addEventListener('load', () => {
-    startCamera();
-    initOCR();
-  });
 </script>
 
 </body>
